@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #FAF9F5;
+  --foreground: #1C1917;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(#E8E5DD 0.75px, transparent 0.75px), 
+    radial-gradient(#E8E5DD 0.75px, #FAF9F5 0.75px);
+  background-size: 30px 30px;
+  background-position: 0 0, 15px 15px;
+}
+
+/* Warm Culinary Panel Styles */
+.culinary-panel {
+  background: #FFFFFF;
+  border: 1px solid #EAE7DF;
+  box-shadow: 0 4px 20px -2px rgba(28, 25, 23, 0.05);
+}
+
+.culinary-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.culinary-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px -8px rgba(28, 25, 23, 0.09);
+  border-color: #DFDCD3;
+}
+
+/* AG Grid Quartz Warm Theme */
+.ag-theme-quartz {
+  --ag-background-color: #FFFFFF;
+  --ag-header-background-color: #F8F7F3;
+  --ag-odd-row-background-color: #FCFBFA;
+  --ag-border-color: #EAE7DF;
+  --ag-row-hover-color: #F4F1EA;
+  --ag-header-foreground-color: #57534E;
+  --ag-foreground-color: #1C1917;
+  --ag-font-size: 13px;
+  --ag-cell-horizontal-padding: 14px;
+  --ag-row-border-style: solid;
+  --ag-row-border-color: #EAE7DF;
+  font-family: inherit;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF9F5;
+}
+::-webkit-scrollbar-thumb {
+  background: #D6D3D1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #A8A29E;
+}
