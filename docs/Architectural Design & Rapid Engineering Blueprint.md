@@ -1,6 +1,6 @@
 # Architectural Design & Rapid Engineering Blueprint
 
-**Codename:** Bypass.ai (Agentic Micro-Commerce Engine)
+**Product:** BitePass (Agentic Micro-Commerce Engine)
 
 **Hackathon Target Tracks:** *Best Use of Agentic Commerce ($5,000)* & *Best Use of PayPal + AI ($5,000)*
 
@@ -84,7 +84,7 @@ Fast-casual commerce fails when users must click through 8 configuration steps. 
 * **Core Recommendation:** "Jack's Cafe — Turkey Avocado Club ($14.50)".
 * **Context Reason:** *"Matches your lunch window before 1:30 PM Standup. 8m walking buffer."*
 * **The Hero CTA:** High-contrast PayPal Blue button (`#0070BA`):
-`[ ⚡ 1-Tap Bypass with PayPal ]`
+`[ ⚡ Hold with PayPal ]`
 
 
 
@@ -151,7 +151,7 @@ To satisfy the **Best Use of Agentic Commerce** track, prove that the agent safe
 ## 6. Project Directory Blueprint (Keep It Minimal)
 
 ```text
-bypass-ai/
+bitepass/
 ├── app/
 │   ├── api/
 │   │   ├── agent/route.ts        # Gemini Function Calling (Context -> Item)
@@ -219,7 +219,7 @@ export async function createAuthorizationOrder(amount: string) {
             currency_code: 'USD',
             value: amount,
           },
-          description: 'Bypass.ai - Fast-Track Lunch Order',
+          description: 'BitePass - Fast-Track Lunch Order',
         },
       ],
     }),
@@ -246,7 +246,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ shouldTrigger: false });
   }
 
-  const prompt = `You are Bypass.ai, an agent anticipating user lunch decisions.
+  const prompt = `You are BitePass, an agent anticipating user lunch decisions.
 Context: User has ${freeMinutes} minutes free, is ${distanceMeters}m from dining strip, and prefers: ${dietary}.
 Available catalog: ${JSON.stringify(MENU_CATALOG)}.
 Select the single best match and write a punchy, 1-sentence notification.`;

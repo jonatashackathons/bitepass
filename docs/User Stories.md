@@ -1,4 +1,4 @@
-Here is the complete Agile specification for **Bypass.ai**, structured according to **Mike Cohn’s user story best practices**, tested against the **INVEST** criteria, split into discrete technical tasks using the **SPIDR** method, and strictly prioritized via **MoSCoW + YAGNI** for the PayPal AI Hackathon build.
+Here is the complete Agile specification for **BitePass**, structured according to **Mike Cohn’s user story best practices**, tested against the **INVEST** criteria, split into discrete technical tasks using the **SPIDR** method, and strictly prioritized via **MoSCoW + YAGNI** for the PayPal AI Hackathon build.
 
 ---
 
@@ -98,7 +98,7 @@ To ship a hackathon winner within the remaining runway, YAGNI dictates cutting l
 * **Acceptance Criteria (Given-When-Then):**
 * **Scenario 1: Successful 1-tap authorization**
 * *Given* a proactive recommendation card is active on the screen,
-* *When* the user taps `[ ⚡ 1-Tap Bypass with PayPal ]`,
+* *When* the user taps `[ ⚡ Hold with PayPal ]`,
 * *Then* the client sends a POST request to `/api/paypal/create` with the exact catalog amount,
 * *And* the PayPal Orders API v2 creates an order with `intent: "AUTHORIZE"`,
 * *And* the UI transitions to the active prep ticket with ETA countdown and cubby assignment within 1 second.
@@ -200,7 +200,7 @@ To ship a hackathon winner within the remaining runway, YAGNI dictates cutting l
 * **Priority:** `SHOULD HAVE` ($5,000 Sponsor Prize Multiplier)
 * **Story:**
 > **As a** fast-casual restaurant operator,
-> **I want** to see incoming Bypass orders update in real time in a high-density AG Grid table,
+> **I want** to see incoming BitePass orders update in real time in a high-density AG Grid table,
 > **So that** kitchen staff know what to assemble and see payments settle without handling a cash register.
 
 

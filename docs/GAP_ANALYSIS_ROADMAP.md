@@ -1,64 +1,50 @@
-# 🗺️ BitePass — Production Gap Analysis & 90-Day Commercial Roadmap
+# 🗺️ BitePass — Production Readiness Matrix & Commercial Scale Roadmap
 
-> **Master Graph Hub:** [README.md](../README.md) &middot; [Pitch Deck](PITCH_DECK.md) &middot; [Architecture](ARCHITECTURE.md)  
-> **Integrations:** [PayPal Escrow](integrations/PAYPAL_ESCROW.md) &middot; [Gemini 4 Argon](integrations/GEMINI_ARGON.md) &middot; [Merchant KDS & AG Grid](integrations/MERCHANT_KDS_IOT.md) &middot; [Mobile Geofencing](integrations/MOBILE_GEOFENCING.md)
-
----
-
-## 1. Exhaustive Gap Analysis Matrix
-
-This matrix details every subsystem currently mocked or simplified for the zero-latency hackathon prototype, alongside the exact enterprise components required for commercial production:
-
-| Subsystem | Hackathon Working Prototype | Production Commercial Standard | Complexity | Target Timeline |
-| :--- | :--- | :--- | :--- | :--- |
-| **Payment Authorization** | Mock fallback + PayPal REST API adapter | **PayPal Fastlane + Vault v3** with biometric device binding (zero-redirect 1-tap checkout) | Medium | Month 1 |
-| **Payment Settlement** | Client-initiated REST capture trigger | Server-validated **Proximity Capture** authenticated with cryptographic BLE beacon telemetry | Medium | Month 2 |
-| **Calendar Ingestion** | Slider & preset simulation | **Google Calendar & Outlook 365 OAuth2** sync with real-time delta webhook listeners | Low | Month 1 |
-| **Location Tracking** | React state distance slider | Native iOS **CoreLocation** & Android **FusedLocation** with battery-saving circular geofences | Medium | Month 2 |
-| **Kitchen Operations** | In-memory singleton + AG Grid React v33 | **Toast POS API / Square POS Bridge** + AG Grid Enterprise with Server-Side Row Model | High | Month 3 |
-| **Smart Locker Hardware**| Simulated cubby assignment | Physical heated locker arrays (Apex / Minnow) controlled via **MQTT relays & GPIO controllers** | High | Month 3 |
-| **State Persistence** | In-memory TypeScript store (`lib/mock-db.ts`) | **PostgreSQL (Supabase/Prisma) + Redis** for distributed multi-tenant order state & queue locks | Low | Month 1 |
-| **Push Notifications** | Simulated browser cards | Native **Apple APNs & Firebase Cloud Messaging (FCM)** for ambient lock screen push cards | Medium | Month 2 |
-| **Contactless Pickup** | In-app QR code component | Native **Apple Wallet (`.pkpass`) & Google Wallet API** with NFC tap support | Medium | Month 2 |
+> **Master Graph Hub:** [README.md](../README.md) &middot; [Pitch Deck](PITCH_DECK.md) &middot; [Architecture](ARCHITECTURE.md) &middot; [OpenAPI 3.1](../openapi/openapi.v1.json)  
+> **Integrations:** [PayPal Escrow](integrations/PAYPAL_ESCROW.md) &middot; [Gemini 4 Argon](integrations/GEMINI_ARGON.md) &middot; [Merchant KDS & AG Grid](integrations/MERCHANT_KDS_IOT.md) &middot; [Mobile Geofencing](integrations/MOBILE_GEOFENCING.md)  
+> **Runbooks:** [RB-01 Orphaned Holds](runbooks/RB-01-orphaned-paypal-holds.md) &middot; [RB-02 Webhook Replay](runbooks/RB-02-paypal-webhook-dlq-replay.md) &middot; [RB-03 KDS & Cubby Override](runbooks/RB-03-kds-cubby-manual-override.md)
 
 ---
 
-## 2. 90-Day Phased Implementation Roadmap
+## 1. Production Subsystem Status Matrix (v0.2.0)
+
+This matrix maps every architectural subsystem from initial prototype through the implemented v0.2.0 production hardening and Phase 3 hardware scale-out:
+
+| Subsystem | Implemented Production Foundation (v0.2.0) | Phase 3 Commercial Hardware Scale-Out | Status |
+| :--- | :--- | :--- | :--- |
+| **Payment Authorization** | PayPal Orders v2 (`intent: "AUTHORIZE"`), Vault v3 + Multiparty `payee` + `platform_fees`, fail-closed live safety ([lib/paypal-client.ts](../lib/paypal-client.ts)) | Biometric Passkey / Fastlane native mobile SDK binding | **Production Ready** |
+| **Payment Settlement** | Crash-safe `CAPTURING` saga + reconciler ([lib/reconciler.ts](../lib/reconciler.ts)), server-side Haversine `<=50m` + `<=12 m/s` velocity & `<=15s` GPS freshness ([lib/validation.ts](../lib/validation.ts)) | Encrypted rotating Eddystone-EID physical doorway beacons | **Production Ready** |
+| **State Persistence** | Dual-Track Hexagonal Repository ([lib/repositories/kitchen-repository.ts](../lib/repositories/kitchen-repository.ts)): `InMemory` + PostgreSQL Prisma `FOR UPDATE SKIP LOCKED` & `idx_station_one_active_order` | Multi-region read replicas + Redis Cluster rate-limit store | **Production Ready** |
+| **API Contract & AuthZ** | Versioned `/api/v1/*` + OpenAPI 3.1 ([openapi/openapi.v1.json](../openapi/openapi.v1.json)), IDOR ownership guards ([lib/security.ts](../lib/security.ts)), RFC 9745 deprecation headers ([middleware.ts](../middleware.ts)) | OAuth2 / OIDC enterprise SSO federation | **Production Ready** |
+| **Kitchen Operations** | Granular AG Grid v33 KDS ([components/MerchantQueueGrid.tsx](../components/MerchantQueueGrid.tsx)) with `SETTLE_AND_UNLOCK`, `CLEAR_QUARANTINE`, `+5m` 60s free-cancel reopen, and `MERCHANT.PARTNER-CONSENT.REVOKED` guard | Toast POS / Square POS bidirectional ticket bridge | **Production Ready** |
+| **Contactless Pickup** | HMAC-signed Wallet Pass bundle (`/api/v1/orders/[orderId]/wallet-pass`), offline QR token, Express Shelf "Color-of-the-Day" badge, `.ics` calendar export | Physical heated locker MQTT relays (Apex / Minnow) | **Production Ready** |
+| **Privacy & Compliance** | `/legal/terms`, `/legal/privacy`, Reg E pre-authorized capture notice, and `DELETE /api/v1/account/data` GDPR/CCPA erasure | SOC 2 Type II continuous control attestation | **Production Ready** |
+
+---
+
+## 2. Phased Commercial Rollout Flow
 
 ```mermaid
-gantt
-  title BitePass Commercial Production Roadmap (90 Days)
-  dateFormat  YYYY-MM-DD
-  section Phase 1: Security & Cloud Data
-  PostgreSQL & Prisma Schema Migration       :done, p1, 2026-11-01, 10d
-  Live PayPal Sandbox Auth & Fastlane SDK   :active, p2, 2026-11-08, 14d
-  Google Calendar OAuth2 Sync Worker        :p3, 2026-11-15, 12d
-  
-  section Phase 2: Native Mobile & Geofencing
-  React Native / Expo Mobile App Container  :p4, 2026-11-25, 18d
-  CoreLocation 50m Doorstep Geofence Engine :p5, 2026-12-05, 14d
-  Apple Wallet & Google Wallet NFC Passes   :p6, 2026-12-12, 10d
-  
-  section Phase 3: Merchant Kitchen & IoT
-  Toast POS & Square POS REST Adapter       :p7, 2026-12-20, 16d
-  AG Grid Enterprise Multi-Bay Deployment   :p8, 2027-01-02, 10d
-  MQTT Smart Locker Hardware Integration    :p9, 2027-01-10, 15d
-  Live Pilot at Downtown Corporate Tower    :milestone, m1, 2027-01-28, 1d
+flowchart LR
+  P1["Phase 1 (Complete)<br/>Dual-Track Postgres + PayPal v2 Escrow + IDOR/RBAC"] --> P2["Phase 2 (Complete)<br/>OpenAPI 3.1 (/api/v1) + Saga Reconciler + Geofence Kinematics"]
+  P2 --> P3["Phase 3 (Pilot)<br/>Single-Corridor Express Shelf + Signed Wallet Passes"]
+  P3 --> P4["Phase 4 (Scale)<br/>Toast/Square POS Bridge + MQTT Heated Cubby Relays"]
 ```
 
 ---
 
-## 3. Regulatory, Privacy & Security Requirements
+## 3. Regulatory, Privacy & Security Guarantees
 
-1. **PCI-DSS Compliance:** Because BitePass leverages PayPal Orders v2 and PayPal Fastlane, payment credentials never touch BitePass servers. BitePass qualifies for the simplified **PCI DSS SAQ-A** standard.
-2. **Location Privacy:** Location tracking activates strictly within the 30 minutes before a recognized meal window and shuts off immediately upon order collection. No persistent location logs are stored.
-3. **Escrow Guarantee:** Customer funds are held in escrow for a maximum of 3 hours. If uncaptured, a cron worker automatically executes `v2/payments/authorizations/{id}/void`.
+1. **PCI-DSS SAQ-A:** Payment credentials never touch BitePass infrastructure; all authorizations, partial COGS captures, voids, and refunds execute via PayPal Orders v2 & Payments v2 APIs.
+2. **Ephemeral Proximity Telemetry:** Geofence coordinates are verified strictly in memory (`<=50m` Haversine, `<=15s` freshness, `<=12 m/s` velocity ceiling) and discarded; only coarse scalar distance is retained for dispute defense.
+3. **3-Hour Escrow Expiry Guarantee:** Unsettled authorizations older than 3 hours are automatically voided and stations released via `POST /api/v1/internal/reconcile` ([lib/reconciler.ts](../lib/reconciler.ts)).
+4. **GDPR Art. 17 / CCPA Right to Delete:** Diners can invoke `DELETE /api/v1/account/data` at any time to void active holds, scrub order PII, and clear signed session cookies.
 
 ---
 
 ## 4. Connected Graph
 
-* 🏠 **Hub:** [README.md](../README.md)
+* 🏠 **Hub:** [README.md](../README.md) &middot; [SECURITY.md](../SECURITY.md) &middot; [CONTRIBUTING.md](../CONTRIBUTING.md) &middot; [CHANGELOG.md](../CHANGELOG.md)
 * 🎙️ **Pitch & Demo:** [PITCH_DECK.md](PITCH_DECK.md)
 * 🏗️ **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
 * 💳 **PayPal Escrow Integration:** [integrations/PAYPAL_ESCROW.md](integrations/PAYPAL_ESCROW.md)

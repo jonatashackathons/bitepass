@@ -18,7 +18,9 @@ The complete end-to-end journey from proactive suggestion to contactless doorste
 
 * **🎬 Play / Download Video:** [public/videos/pitch_walkthrough.mp4](../public/videos/pitch_walkthrough.mp4) (H.264 &middot; 575 KB &middot; 34.8 seconds)
 * **WebM Source (VP9):** [public/videos/pitch_walkthrough.webm](../public/videos/pitch_walkthrough.webm)
-* **Playwright Test Runner:** `npm run test:pitch` ([tests/e2e/pitch-demo.spec.ts](../tests/e2e/pitch-demo.spec.ts))
+* **Playwright Test Runner (Full):** `npm run test:pitch` ([tests/e2e/pitch-demo.spec.ts](../tests/e2e/pitch-demo.spec.ts))
+* **Playwright Test Runner (30s Labeled Pitch):** `npm run test:pitch:labeled` ([tests/e2e/pitch-30s-labeled.spec.ts](../tests/e2e/pitch-30s-labeled.spec.ts))
+* **30-Second Video Demonstration Blueprint:** See [30s Video Blueprint](../docs/SCENARIOS_TESTED_WALKTHROUGH.md#30-second-video-demonstration-blueprint-with-clear-step-labels)
 
 ---
 
@@ -153,8 +155,8 @@ The complete end-to-end journey from proactive suggestion to contactless doorste
 
 ### Scenario 7: Ambient Silence Mode (Calendar Crunch < 30m)
 
-* **Test Script:** [`tests/unit/gemini-agent.test.ts`](file:///Users/jonatassouza/bin/dev/bitepass/tests/unit/gemini-agent.test.ts)
-* **Component:** [`app/page.tsx`](file:///Users/jonatassouza/bin/dev/bitepass/app/page.tsx)
+* **Test Script:** [`tests/unit/gemini-agent.test.ts`](../tests/unit/gemini-agent.test.ts)
+* **Component:** [`app/page.tsx`](../app/page.tsx)
 * **Guardrail:** Gemini 4 Argon autonomous quiet-hours filter
 
 #### What is Tested & Verified:
@@ -167,8 +169,8 @@ The complete end-to-end journey from proactive suggestion to contactless doorste
 
 ### Scenario 8: Pre-Prep Grace Period Cancellation (Void Hold)
 
-* **Test Script:** [`tests/unit/paypal-escrow.test.ts`](file:///Users/jonatassouza/bin/dev/bitepass/tests/unit/paypal-escrow.test.ts)
-* **Component:** [`components/ActiveEscrowTicket.tsx`](file:///Users/jonatassouza/bin/dev/bitepass/components/ActiveEscrowTicket.tsx)
+* **Test Script:** [`tests/unit/paypal-escrow.test.ts`](../tests/unit/paypal-escrow.test.ts)
+* **Component:** [`components/ActiveEscrowTicket.tsx`](../components/ActiveEscrowTicket.tsx)
 * **API Route:** `POST /api/paypal/void`
 
 #### What is Tested & Verified:
@@ -188,6 +190,23 @@ The complete end-to-end journey from proactive suggestion to contactless doorste
 | **Mobile Viewport E2E** | `npm run test:mobile` | 4 tests | Playwright (390px × 844px) | ✅ `4/4 passed` (5.5s) |
 | **Full E2E Suite** | `npm run test:e2e` | 6 tests | Playwright (Desktop + Mobile) | ✅ `6/6 passed` (51.6s) |
 | **Slow-Motion Pitch Demo** | `npm run test:pitch` | 1 hero test | Playwright (`slowMo: 600ms`) | ✅ `1 passed` (33.4s) |
+| **30s Labeled Pitch Demo** | `npm run test:pitch:labeled` | 1 hero test | Playwright (`slowMo: 450ms` + HUD) | ✅ `Ready (30.0s)` |
+
+---
+
+## 🎯 30-Second Video Demonstration Blueprint (With Clear Step Labels)
+
+For hackathon judge evaluations, a dedicated **30-second rapid-fire video** is structured with high-contrast on-screen chyrons/HUD overlays so every technical step and state transition is immediately legible:
+
+### On-Screen Step Labels & Second-by-Second Breakdown:
+
+| Timestamp | Clear Step Label & HUD Badge | Visual Action on Screen | Voiceover / Closed Caption | Technical Verification |
+| :--- | :--- | :--- | :--- | :--- |
+| **00:00 – 00:05** | `[ STEP 01/05 ]` &middot; **AUTONOMOUS AMBIENT PROPOSAL** (`#6366F1` Indigo) | Phone wakes with Jack's Turkey Avocado Club card (`⚡ 22m saved`). Cognitive bar displays reasoning. | *"Traditional apps make you search and wait. BitePass is proactive: your AI spots a calendar gap and queues lunch before you ask."* | `POST /api/agent` &middot; Gemini 4 Argon reasoning with 35m lull & 180m distance. |
+| **00:05 – 00:10** | `[ STEP 02/05 ]` &middot; **3-SECOND TACTILE CUSTOMIZATION** (`#D97706` Amber) | User taps `[ Arugula Citrus Side Salad +$1.50 ]`. Subtotal instantly recalculates from $14.50 to $16.00. | *"Need a tweak? One tap adds a side salad, instantly updating the order with zero checkout friction."* | Real-time React calculation without server roundtrip latency. |
+| **00:10 – 00:17** | `[ STEP 03/05 ]` &middot; **PHASE 1 PAYPAL ESCROW HOLD** (`#0070BA` PayPal Blue) | 1-Tap on `#paypal-one-tap-button`. Morphs into Active Escrow Ticket: Bay locked, countdown running, $0 deducted. | *"With 1-Tap PayPal Escrow, funds are held in escrow with $0 deducted while the cafe prepares your meal. Your cubby is secured."* | `POST /api/paypal/create` &middot; `intent: "AUTHORIZE"`, Bay capacity allocated. |
+| **00:17 – 00:23** | `[ STEP 04/05 ]` &middot; **DOORSTEP GEOFENCE CAPTURE (<50m)** (`#10B981` Emerald) | Commuter approaches cafe (<50m). Geofence triggers auto-capture. Flashes green banner and unlocks FASTPASS QR. | *"Cross the 50m doorstep geofence, and PayPal auto-captures the payment. Flash your FASTPASS QR, grab and go with zero line."* | `POST /api/paypal/capture` &middot; PayPal Auth capture, ticket marked `CAPTURED`. |
+| **00:23 – 00:30** | `[ STEP 05/05 ]` &middot; **AG GRID ENTERPRISE KITCHEN TELEMETRY** (`#0EA5E9` Cyan) | Switch to Kitchen Operations tab. AG Grid Quartz table updates ticket row to `CAPTURED / SETTLED`. Final branding. | *"Behind the scenes, the merchant sees real-time bay telemetry powered by AG Grid. BitePass: zero-queue autonomous commerce."* | `ag-grid-react v33` &middot; live SSE/poll status transition. |
 
 ---
 

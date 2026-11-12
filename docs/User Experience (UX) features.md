@@ -1,4 +1,4 @@
-Here is the complete, categorized breakdown of all **User Experience (UX) features** for the **Bypass.ai** (or **BitePass**) application, detailed across both the **Consumer Mobile View** and the **Judge / Merchant Split Console**:
+Here is the complete, categorized breakdown of all **User Experience (UX) features** for the **BitePass** application, detailed across both the **Consumer Mobile View** and the **Judge / Merchant Split Console**:
 
 ---
 
@@ -12,9 +12,9 @@ Here is the complete, categorized breakdown of all **User Experience (UX) featur
 
 
 * **Single-Tap Autonomous Checkout CTA**
-* **Branded PayPal Action Button:** Prominent high-contrast PayPal button (`[ ⚡ 1-Tap Bypass with PayPal ]`).
-* **Micro-Spinner Feedback:** Instant micro-interaction state change upon tap (`Authorizing $14.50...`), confirming the payment hold without opening a multi-step checkout modal.
-* **Zero-Form Execution:** Bypasses card input forms, delivery address selectors, and cart confirmations by leveraging stored user preferences and the PayPal Sandbox Auth flow.
+* **Branded PayPal Action Button:** Prominent high-contrast PayPal button (`[ ⚡ Hold with PayPal ]`).
+* **Micro-Spinner Feedback:** Instant micro-interaction state change upon tap (`Holding Escrow ($16.00)...`), confirming the payment hold without opening a multi-step checkout modal.
+* **Zero-Form Execution:** Eliminates card input forms, delivery address selectors, and cart confirmations by leveraging stored user preferences and the PayPal Orders v2 Auth flow.
 
 
 * **Post-Authorization "Live Route" & Ticket Card**

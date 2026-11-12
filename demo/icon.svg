@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <style>
+      .brand-title {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-weight: 800;
+        font-size: 82px;
+        letter-spacing: -0.03em;
+        text-anchor: middle;
+      }
+      .brand-subtitle {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-weight: 800;
+        font-size: 15px;
+        letter-spacing: 0.22em;
+        text-anchor: middle;
+      }
+    </style>
+  </defs>
+
+  <!-- Clean Flat Porcelain Canvas Base -->
+  <rect x="32" y="32" width="960" height="960" rx="224" ry="224" fill="#FAF9F5" stroke="#EAE7DF" stroke-width="6"/>
+
+  <!-- Minimalist Radar Perimeter Ring (<50m Proximity Perimeter) -->
+  <circle cx="512" cy="446" r="350" fill="none" stroke="#EAE7DF" stroke-width="3" stroke-dasharray="12 12"/>
+  <circle cx="512" cy="446" r="316" fill="none" stroke="rgba(191, 62, 33, 0.12)" stroke-width="2.5"/>
+
+  <!-- Top Cloche Handle Ring with Collar -->
+  <circle cx="512" cy="180" r="36" fill="none" stroke="#BF3E21" stroke-width="22" stroke-linecap="round"/>
+  <rect x="496" y="214" width="32" height="12" rx="6" fill="#BF3E21"/>
+
+  <!-- Cloche Dome: Left Wing (Artisan Terracotta #BF3E21) -->
+  <!-- Sculpted curve with negative space thunderbolt separation cut -->
+  <path d="M 224 624 C 224 356 360 238 498 226 L 452 404 L 514 404 L 464 624 Z" fill="#BF3E21"/>
+
+  <!-- Cloche Dome: Right Wing (Artisan Terracotta #BF3E21) -->
+  <path d="M 526 226 C 664 238 800 356 800 624 L 492 624 L 542 426 L 480 426 Z" fill="#BF3E21"/>
+
+  <!-- Flat Serving Platter Base (Deep Charcoal Stone #1C1917) -->
+  <rect x="176" y="642" width="672" height="38" rx="19" fill="#1C1917"/>
+
+  <!-- Minimalist Dining Fork Tines (Clean Negative-Space Slits in Platter Base) -->
+  <line x1="472" y1="648" x2="472" y2="674" stroke="#FAF9F5" stroke-width="7" stroke-linecap="round"/>
+  <line x1="512" y1="648" x2="512" y2="674" stroke="#FAF9F5" stroke-width="7" stroke-linecap="round"/>
+  <line x1="552" y1="648" x2="552" y2="674" stroke="#FAF9F5" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- Brand Wordmark: Modern Geometric Sans (Bite in Stone, Pass in Terracotta) -->
+  <text x="512" y="786" class="brand-title">
+    <tspan fill="#1C1917">Bite</tspan><tspan fill="#BF3E21">Pass</tspan>
+  </text>
+
+  <!-- Tagline Pill: "THE CULINARY FAST PASS" -->
+  <rect x="272" y="824" width="480" height="44" rx="22" fill="rgba(191, 62, 33, 0.08)" stroke="rgba(191, 62, 33, 0.28)" stroke-width="1.5"/>
+  <text x="512" y="852" class="brand-subtitle" fill="#BF3E21">THE CULINARY FAST PASS</text>
+</svg>

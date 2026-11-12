@@ -1,26 +1,54 @@
 import { NextResponse } from 'next/server';
+import { parseJsonBody, toProblemResponse } from '@/lib/errors';
 import { evaluateAgentContext } from '@/lib/gemini';
-import { DietaryPreference } from '@/lib/types';
+import { logger, resolveTraceId } from '@/lib/logger';
+import {
+  assertSameOrigin,
+  checkRateLimit,
+  hasExplicitDinerPrincipal,
+  resolveDinerPrincipal,
+} from '@/lib/security';
+import { AgentEvaluateRequestSchema, validateSchema } from '@/lib/validation';
 
 export async function POST(req: Request) {
+  const traceId = resolveTraceId(req);
   try {
-    const body = await req.json();
-    const freeMinutes = Number(body.freeMinutes ?? 35);
-    const distanceMeters = Number(body.distanceMeters ?? 200);
-    const dietary = (body.dietary ?? 'Omnivore') as DietaryPreference;
+    assertSameOrigin(req);
+    const principal = resolveDinerPrincipal(req);
+    const explicitUser = hasExplicitDinerPrincipal(req);
+    const forwardedIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+    const rateBucketKey = explicitUser ?? forwardedIp ?? principal.userId;
+
+    // PROD-18: Enforce 10 req/min sliding-window rate limit on /api/agent
+    checkRateLimit(`agent:${rateBucketKey}`, 10);
+
+    const rawBody = await parseJsonBody(req);
+    const input = validateSchema(AgentEvaluateRequestSchema, rawBody);
 
     const recommendation = await evaluateAgentContext({
-      freeMinutes,
-      distanceMeters,
-      dietary,
+      freeMinutes: input.freeMinutes,
+      distanceMeters: input.distanceMeters,
+      dietary: input.dietary,
+      excludedAllergens: input.excludedAllergens,
+      contextMode: input.contextMode,
+      towerId: input.towerId,
     });
 
-    return NextResponse.json(recommendation);
+    logger.info('Evaluated proactive culinary context', {
+      traceId,
+      userId: principal.userId,
+      event: 'agent.evaluate',
+      triggered: recommendation.shouldTrigger,
+    });
+
+    const res = NextResponse.json(recommendation, {
+      headers: { 'X-Trace-Id': traceId },
+    });
+    if (principal.setCookieHeader) {
+      res.headers.append('Set-Cookie', principal.setCookieHeader);
+    }
+    return res;
   } catch (error) {
-    console.error('Agent route error:', error);
-    return NextResponse.json(
-      { error: 'Failed to evaluate agent context' },
-      { status: 500 }
-    );
+    return toProblemResponse(error, '/api/agent');
   }
 }

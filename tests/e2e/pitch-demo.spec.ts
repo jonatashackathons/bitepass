@@ -18,7 +18,7 @@ test.describe('BitePass — Step-by-Step Feature Pitch Walkthrough', () => {
     test.setTimeout(75000);
 
     // 1. Initial Load & Proactive Culinary Recommendation
-    await page.goto('http://localhost:3000');
+    await page.goto('/');
     await expect(page.locator('text=BitePass').first()).toBeVisible();
     await page.waitForTimeout(1000);
 

@@ -147,4 +147,4 @@ npm run test:pitch
 ---
 
 ## ⚖️ License
-AGPL-3.0 &middot; Built for the PayPal AI Agent & AG Grid Observability tracks.
+Proprietary (`UNLICENSED`) &middot; Copyright &copy; 2026 BitePass Inc. All Rights Reserved. See [LICENSE](LICENSE).

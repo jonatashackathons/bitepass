@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <style>
+      .brand-title {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-weight: 800;
+        font-size: 82px;
+        letter-spacing: -0.03em;
+        text-anchor: middle;
+      }
+      .brand-subtitle {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-weight: 800;
+        font-size: 15px;
+        letter-spacing: 0.22em;
+        text-anchor: middle;
+      }
+    </style>
+  </defs>
+
+  <!-- Solid Terracotta App Icon Canvas -->
+  <rect x="32" y="32" width="960" height="960" rx="224" ry="224" fill="#BF3E21"/>
+
+  <!-- Minimalist Flat Radar Ring -->
+  <circle cx="512" cy="446" r="350" fill="none" stroke="rgba(255, 255, 255, 0.12)" stroke-width="3" stroke-dasharray="12 12"/>
+
+  <!-- Top Handle Ring with Collar -->
+  <circle cx="512" cy="180" r="36" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round"/>
+  <rect x="496" y="214" width="32" height="12" rx="6" fill="#FFFFFF"/>
+
+  <!-- Cloche Dome: Left Wing (Crisp White #FFFFFF) -->
+  <path d="M 224 624 C 224 356 360 238 498 226 L 452 404 L 514 404 L 464 624 Z" fill="#FFFFFF"/>
+
+  <!-- Cloche Dome: Right Wing (Crisp White #FFFFFF) -->
+  <!-- Separated by the clean terracotta thunder slit -->
+  <path d="M 526 226 C 664 238 800 356 800 624 L 492 624 L 542 426 L 480 426 Z" fill="#FFFFFF"/>
+
+  <!-- Flat Serving Platter Base -->
+  <rect x="176" y="642" width="672" height="38" rx="19" fill="#FAF9F5"/>
+
+  <!-- Dining Fork Accents in Platter -->
+  <line x1="472" y1="648" x2="472" y2="674" stroke="#BF3E21" stroke-width="7" stroke-linecap="round"/>
+  <line x1="512" y1="648" x2="512" y2="674" stroke="#BF3E21" stroke-width="7" stroke-linecap="round"/>
+  <line x1="552" y1="648" x2="552" y2="674" stroke="#BF3E21" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- Flat Brand Wordmark: BitePass in Pure White -->
+  <text x="512" y="786" class="brand-title" fill="#FFFFFF">BitePass</text>
+
+  <!-- Tagline Pill: "THE CULINARY FAST PASS" -->
+  <rect x="272" y="824" width="480" height="44" rx="22" fill="rgba(255, 255, 255, 0.15)" stroke="rgba(255, 255, 255, 0.3)" stroke-width="1.5"/>
+  <text x="512" y="852" class="brand-subtitle" fill="#FFFFFF">THE CULINARY FAST PASS</text>
+</svg>

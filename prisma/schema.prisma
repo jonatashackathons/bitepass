@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum OrderStatus {
+  PROPOSED
+  AUTHORIZING
+  AUTHORIZED
+  CAPTURING
+  CAPTURED
+  COLLECTED
+  VOIDING
+  VOIDED
+  CANCELLED_FEE_CAPTURED
+  EXPIRED
+  CAPTURE_FAILED
+  REFUNDED
+}
+
+enum FulfillmentStage {
+  GRACE_HOLD
+  KITCHEN_FIRED
+  READY
+  HANDED_OFF
+  QUARANTINED
+}
+
+enum StationKind {
+  HIGH_TOP_BAY
+  SMART_CUBBY
+}
+
+enum StationHealth {
+  AVAILABLE
+  QUARANTINED
+  MAINTENANCE
+}
+
+model Merchant {
+  id                    String     @id
+  slug                  String     @unique
+  name                  String
+  paypalMerchantId      String?
+  paymentsReceivable    Boolean    @default(true)
+  primaryEmailConfirmed Boolean    @default(true)
+  taxRateBps            Int        @default(800)
+  latitude              Float
+  longitude             Float
+  geofenceRadiusM       Int        @default(50)
+  menuItems             MenuItem[]
+  stations              Station[]
+  orders                Order[]
+  createdAt             DateTime   @default(now())
+}
+
+model MenuItem {
+  id              String   @id
+  merchantId      String
+  merchant        Merchant @relation(fields: [merchantId], references: [id])
+  name            String
+  category        String
+  basePriceCents  Int
+  prepTimeMinutes Int
+  dietaryTags     String[]
+  allergens       String[]
+  calories        Int
+  description     String
+  imageUrl        String?
+  quickTweaksJson Json?
+  isAvailable     Boolean  @default(true)
+  orders          Order[]
+
+  @@index([merchantId, isAvailable])
+}
+
+model Station {
+  id            String        @id @default(uuid())
+  merchantId    String
+  merchant      Merchant      @relation(fields: [merchantId], references: [id])
+  code          String
+  kind          StationKind
+  priorityOrder Int
+  health        StationHealth @default(AVAILABLE)
+  orders        Order[]
+
+  @@unique([merchantId, code])
+  @@index([merchantId, health, kind, priorityOrder])
+}
+
+model Order {
+  id                  String              @id @default(uuid())
+  displayCode         String              @unique
+  merchantId          String
+  merchant            Merchant            @relation(fields: [merchantId], references: [id])
+  userId              String
+  customerName        String
+  menuItemId          String
+  menuItem            MenuItem            @relation(fields: [menuItemId], references: [id])
+  stationId           String?
+  station             Station?            @relation(fields: [stationId], references: [id])
+  stationCode         String
+  selectedTweak       String?
+  selectedTweakId     String?
+  baseAmountCents     Int
+  tweakAmountCents    Int                 @default(0)
+  taxAmountCents      Int
+  tipAmountCents      Int
+  fastPassFeeCents    Int                 @default(0)
+  platformFeeCents    Int                 @default(0)
+  totalAmountCents    Int
+  restockingFeeCents  Int?
+  status              OrderStatus         @default(PROPOSED)
+  fulfillmentStage    FulfillmentStage    @default(GRACE_HOLD)
+  paypalOrderId       String?             @unique
+  paypalAuthId        String?             @unique
+  paypalCaptureId     String?             @unique
+  paypalRefundId      String?             @unique
+  offlineQrToken      String?
+  etaMinutes          Int                 @default(5)
+  authExpiresAt       DateTime?
+  graceExpiresAt      DateTime?
+  kitchenFiredAt      DateTime?
+  readyAt             DateTime?
+  capturedAt          DateTime?
+  collectedAt         DateTime?
+  voidedAt            DateTime?
+  refundedAt          DateTime?
+  isSimulated         Boolean             @default(false)
+  version             Int                 @default(1)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  authorizedAt        DateTime?
+  ledgerEvents        EscrowLedgerEvent[]
+
+  @@index([merchantId, status, createdAt(sort: Desc)])
+  @@index([userId, status])
+  @@index([status, authExpiresAt])
+}
+
+model EscrowLedgerEvent {
+  id                String       @id @default(uuid())
+  orderId           String
+  order             Order        @relation(fields: [orderId], references: [id])
+  eventType         String
+  fromStatus        OrderStatus?
+  toStatus          OrderStatus
+  amountCents       Int
+  paypalRequestId   String
+  paypalReferenceId String?
+  actorType         String
+  metadata          Json?
+  createdAt         DateTime     @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model IdempotencyKey {
+  key          String   @id
+  requestHash  String
+  status       String
+  responseCode Int?
+  responseBody Json?
+  lockedUntil  DateTime
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
+}
+

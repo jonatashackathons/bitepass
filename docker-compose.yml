@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bitepass-postgres
+    ports:
+      - "127.0.0.1:${BITEPASS_PG_PORT:-54329}:5432"
+    environment:
+      POSTGRES_USER: bitepass
+      POSTGRES_PASSWORD: bitepass_dev_password
+      POSTGRES_DB: bitepass
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bitepass -d bitepass"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    container_name: bitepass-redis
+    ports:
+      - "127.0.0.1:${BITEPASS_REDIS_PORT:-63799}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+

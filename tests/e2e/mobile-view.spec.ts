@@ -14,7 +14,7 @@ test.describe('BitePass — Mobile Viewport (390px × 844px) Test Suite', () => 
     page,
   }) => {
     // 1. Load app on mobile viewport
-    await page.goto('http://localhost:3000');
+    await page.goto('/');
 
     // 2. Check mobile brand & compact navbar
     await expect(page.locator('text=BitePass').first()).toBeVisible();
@@ -94,7 +94,7 @@ test.describe('BitePass — Mobile Viewport (390px × 844px) Test Suite', () => 
   test('verifies floating photo badges hover/tap sliding animation and mobile onboarding guide', async ({
     page,
   }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('/');
 
     // 1. Verify floating circular badges docked on the dish photo
     const lunchBadge = page.locator('button[aria-label="12:15 PM Lunch"]');

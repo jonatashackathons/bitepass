@@ -100,7 +100,7 @@ stateDiagram-v2
 
 ## 3. Data Models & Interface Contracts
 
-The core interfaces in [`lib/types.ts`](file:///Users/jonatassouza/bin/dev/bitepass/lib/types.ts):
+The core interfaces in [`lib/types.ts`](../lib/types.ts):
 
 ### `MenuItem`
 ```typescript
@@ -163,7 +163,7 @@ export interface AgentRecommendation {
 
 ## 4. Key Architectural Decisions (ADRs)
 
-1. **Zero Hallucination Pricing:** All prices, taxes ($1.00), and tips ($1.00) are computed deterministically in [`lib/mock-db.ts`](file:///Users/jonatassouza/bin/dev/bitepass/lib/mock-db.ts). Gemini 4 Argon selects items by ID; it never invents numeric dollar amounts.
+1. **Zero Hallucination Pricing:** All prices, municipal basis-point taxes, and tips are computed deterministically in integer cents in [`lib/pricing.ts`](../lib/pricing.ts). Gemini 4 Argon selects items by ID; it never invents numeric dollar amounts.
 2. **Two-Phase Escrow vs. Immediate Charge:** Immediate checkout creates buyer friction and high refund costs if meetings overrun. By using PayPal `intent: "AUTHORIZE"`, the user risks nothing until they physically reach the cafe door.
 3. **In-Memory Reactive Kernel:** Orders and bay allocations live in a singleton store that responds in `< 5ms`. In production, this kernel swaps to Redis Pub/Sub + Postgres without modifying route handler signatures.
 4. **Mobile-First Responsive Layout:** Designed around a 390px mobile viewport with above-the-fold 1-tap checkout, paired with AG Grid React v33 on a dedicated merchant tab for observability.

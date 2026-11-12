@@ -1,102 +1,172 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { AgentCognitiveBar } from '@/components/AgentCognitiveBar';
-import { CulinaryRecommendationCard } from '@/components/CulinaryRecommendationCard';
+import {
+  AuthorizeOrderSelection,
+  CulinaryRecommendationCard,
+} from '@/components/CulinaryRecommendationCard';
 import { ActiveEscrowTicket } from '@/components/ActiveEscrowTicket';
 import { DoorstepPass } from '@/components/DoorstepPass';
-import { MerchantQueueGrid } from '@/components/MerchantQueueGrid';
 import { MobileOnboardingGuide } from '@/components/MobileOnboardingGuide';
 import {
   AgentRecommendation,
-  OrderTicket,
-  BayCapacity,
+  Allergen,
+  ContextMode,
   DietaryPreference,
+  MenuItem,
+  OrderTicket,
 } from '@/lib/types';
-import { Sparkles, Clock, ChefHat, ArrowRight } from 'lucide-react';
+import { SituationalScenario, getScenarioById } from '@/lib/scenarios';
+import { calculateOrderPricing, getEligibleMenuItems } from '@/lib/catalog';
+import { Sparkles, Clock, ChefHat, ArrowRight, ShieldCheck } from 'lucide-react';
 
-export default function Home() {
-  // View Tab state
-  const [activeTab, setActiveTab] = useState<'meal' | 'queue'>('meal');
+const ORDER_SYNC_CHANNEL = 'bitepass_order_sync';
+
+function buildInitialRecommendation(
+  scenario: SituationalScenario
+): AgentRecommendation {
+  const pricing = calculateOrderPricing(scenario.item.price);
+  const alternatives = getEligibleMenuItems(scenario.dietary).filter(
+    (m) => m.id !== scenario.item.id
+  );
+  return {
+    shouldTrigger: true,
+    item: scenario.item,
+    alternatives,
+    reason: scenario.reason,
+    timeSavedMinutes: scenario.timeSavedMinutes,
+    walkingBufferMinutes: Math.max(1, Math.round(scenario.distanceMeters / 75)),
+    totalCents: pricing.totalCents,
+    total: pricing.total,
+    breakdown: pricing,
+  };
+}
+
+function BitePassConsumerApp() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlScenarioParam = searchParams.get('scenario') || 'lunch';
+  const pickupRunId = searchParams.get('run_id');
+
+  const [currentScenario, setCurrentScenario] = useState<SituationalScenario>(() =>
+    getScenarioById(urlScenarioParam)
+  );
 
   // Context state
-  const [freeMinutes, setFreeMinutes] = useState(35);
-  const [distanceMeters, setDistanceMeters] = useState(200);
-  const [dietary, setDietary] = useState<DietaryPreference>('Omnivore');
+  const [freeMinutes, setFreeMinutes] = useState(currentScenario.freeMinutes);
+  const [distanceMeters, setDistanceMeters] = useState(
+    currentScenario.distanceMeters
+  );
+  const [dietary, setDietary] = useState<DietaryPreference>(
+    currentScenario.dietary
+  );
+  const [contextMode, setContextMode] = useState<ContextMode>(
+    currentScenario.contextMode ?? 'calendar_gap'
+  );
+  const [excludedAllergens, setExcludedAllergens] = useState<Allergen[]>([]);
 
   // Agent & Order state
-  const [recommendation, setRecommendation] = useState<AgentRecommendation | null>({
-    shouldTrigger: true,
-    item: {
-      id: 'prod_turkey_panini',
-      name: 'Turkey Avocado Club',
-      merchantName: "Jack's Cafe",
-      category: 'Artisan Sandwiches',
-      price: 12.50,
-      prepTimeMinutes: 5,
-      dietaryTags: ['Omnivore'],
-      description: 'Smoked turkey breast, Haas avocado, applewood bacon on toasted sourdough.',
-      calories: 640,
-      image: '/images/turkey_club.jpg',
-      quickTweaks: {
-        label: 'Side Selection',
-        options: [
-          { name: 'Kettle Sea Salt Chips', priceDelta: 0 },
-          { name: 'Arugula Citrus Side Salad', priceDelta: 1.50 },
-        ],
-      },
-    },
-    reason: `35m window before Standup · 3m walk to Jack's Cafe.`,
-    timeSavedMinutes: 20,
-    walkingBufferMinutes: 3,
-    total: 14.50,
-    breakdown: { basePrice: 12.50, tax: 1.00, tip: 1.00, total: 14.50 },
-  });
+  const [recommendation, setRecommendation] =
+    useState<AgentRecommendation | null>(() =>
+      buildInitialRecommendation(currentScenario)
+    );
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [activeOrder, setActiveOrder] = useState<OrderTicket | null>(null);
+  const [activeOrdersCount, setActiveOrdersCount] = useState(2);
   const [isAuthorizing, setIsAuthorizing] = useState(false);
-  const [isCaptured, setIsCaptured] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [pendingRestockingFeeCents, setPendingRestockingFeeCents] = useState<
+    number | null
+  >(null);
   const [isCanceling, setIsCanceling] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
-  // Merchant Queue State
-  const [orders, setOrders] = useState<OrderTicket[]>([]);
-  const [bayCapacity, setBayCapacity] = useState<BayCapacity>({
-    occupiedBays: 0,
-    totalBays: 6,
-    activeBayNames: ['Bay #1', 'Bay #2', 'Bay #3', 'Bay #4', 'Bay #5', 'Bay #6'],
-  });
+  const isCapturingRef = useRef(false);
+  const firedGeofenceOrderRef = useRef<string | null>(null);
+  const broadcastRef = useRef<BroadcastChannel | null>(null);
 
-  const hasCapturedRef = useRef(false);
-
-  // Fetch kitchen orders
-  const fetchOrders = useCallback(async () => {
+  const broadcastOrderSync = useCallback((order: OrderTicket | null) => {
     try {
-      const res = await fetch('/api/orders');
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(data.orders || []);
-        if (data.capacity) {
-          setBayCapacity(data.capacity);
-        }
+      broadcastRef.current?.postMessage({ type: 'ORDER_SYNC', order });
+    } catch {
+      // Ignore closed/unsupported BroadcastChannel environments
+    }
+  }, []);
+
+  // Sync with URL scenario query param
+  useEffect(() => {
+    const matched = getScenarioById(urlScenarioParam);
+    if (matched.id !== currentScenario.id) {
+      setCurrentScenario(matched);
+      setFreeMinutes(matched.freeMinutes);
+      setDistanceMeters(matched.distanceMeters);
+      setDietary(matched.dietary);
+      setContextMode(matched.contextMode ?? 'calendar_gap');
+      setActiveOrder(null);
+      setAuthError(null);
+      setCaptureError(null);
+      setPendingRestockingFeeCents(null);
+      setRecommendation(buildInitialRecommendation(matched));
+    }
+  }, [urlScenarioParam, currentScenario.id]);
+
+  // Rehydrate active diner order on mount / return from /merchant (Zero AG Grid or cross-user PII!)
+  const syncMyActiveOrder = useCallback(async () => {
+    try {
+      const res = await fetch('/api/orders?mine=true', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.activeOrder) {
+        setActiveOrder(data.activeOrder);
       }
-    } catch (err) {
-      console.error('Failed to fetch orders:', err);
+      if (data.bayCapacity) {
+        setActiveOrdersCount(
+          (data.bayCapacity.occupiedBays ?? 0) +
+            (data.bayCapacity.occupiedCubbies ?? 0)
+        );
+      }
+    } catch {
+      // Ignore offline transient poll failure
     }
   }, []);
 
   useEffect(() => {
-    fetchOrders();
-    const interval = setInterval(fetchOrders, 4000);
-    return () => clearInterval(interval);
-  }, [fetchOrders]);
+    syncMyActiveOrder();
+  }, [syncMyActiveOrder]);
+
+  // PROD-10: Multi-tab BroadcastChannel synchronization
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(ORDER_SYNC_CHANNEL);
+    broadcastRef.current = channel;
+    channel.onmessage = (ev: MessageEvent<{ type?: string; order?: OrderTicket | null }>) => {
+      if (ev.data?.type === 'ORDER_SYNC') {
+        setActiveOrder(ev.data.order ?? null);
+      }
+    };
+    return () => {
+      channel.close();
+      broadcastRef.current = null;
+    };
+  }, []);
 
   // Evaluate Agent Recommendation via API
   const evaluateAgent = useCallback(
-    async (mins: number, dist: number, diet: DietaryPreference) => {
+    async (
+      mins: number,
+      dist: number,
+      diet: DietaryPreference,
+      allergens: Allergen[] = excludedAllergens,
+      mode: ContextMode = contextMode
+    ) => {
       setIsEvaluating(true);
+      setAuthError(null);
       try {
         const res = await fetch('/api/agent', {
           method: 'POST',
@@ -105,8 +175,8 @@ export default function Home() {
             freeMinutes: mins,
             distanceMeters: dist,
             dietary: diet,
-            userLocationName: 'Office Suite 402',
-            nextMeetingTitle: 'Engineering Standup',
+            excludedAllergens: allergens,
+            contextMode: mode,
           }),
         });
 
@@ -120,51 +190,88 @@ export default function Home() {
         setIsEvaluating(false);
       }
     },
-    []
+    [excludedAllergens, contextMode]
   );
 
-  // Re-evaluate on context change
-  useEffect(() => {
-    if (!activeOrder) {
-      evaluateAgent(freeMinutes, distanceMeters, dietary);
-    }
-  }, [freeMinutes, distanceMeters, dietary, activeOrder, evaluateAgent]);
+  const handleToggleAllergen = async (allergen: Allergen) => {
+    const next = excludedAllergens.includes(allergen)
+      ? excludedAllergens.filter((a) => a !== allergen)
+      : [...excludedAllergens, allergen];
+    setExcludedAllergens(next);
+    await evaluateAgent(freeMinutes, distanceMeters, dietary, next, contextMode);
+  };
+
+  const handleSelectAlternative = (altItem: MenuItem) => {
+    if (!recommendation || !recommendation.shouldTrigger) return;
+    const pricing = calculateOrderPricing(altItem.price);
+    const remainingAlts = [
+      recommendation.item,
+      ...recommendation.alternatives.filter((i) => i.id !== altItem.id),
+    ];
+    setRecommendation({
+      ...recommendation,
+      item: altItem,
+      alternatives: remainingAlts,
+      totalCents: pricing.totalCents,
+      total: pricing.total,
+      breakdown: pricing,
+    });
+  };
 
   // Phase 1: Authorize (1-Tap Escrow Hold)
-  const handleAuthorize = async (tweak?: { name: string; priceDelta: number }) => {
-    if (!recommendation?.item || isAuthorizing) return;
+  const handleAuthorize = async (selection?: AuthorizeOrderSelection) => {
+    if (!recommendation?.shouldTrigger || isAuthorizing) return;
 
     setIsAuthorizing(true);
+    setAuthError(null);
     try {
       const res = await fetch('/api/paypal/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           itemId: recommendation.item.id,
-          tweakDelta: tweak ? tweak.priceDelta : 0,
-          selectedTweak: tweak ? tweak.name : undefined,
+          tweakOptionId: selection?.tweakOptionId,
+          selectedTweak: selection?.name,
+          tipSelection:
+            selection?.tipAmountCents !== undefined
+              ? { mode: 'fixed_cents', amountCents: selection.tipAmountCents }
+              : undefined,
+          excludedAllergens,
+          customerName: currentScenario.persona,
+          distanceMeters,
+          workEmail: selection?.workEmail,
+          pickupRunId: pickupRunId ?? undefined,
         }),
       });
 
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
         setActiveOrder(data.order);
-        setIsCaptured(false);
-        hasCapturedRef.current = false;
-        await fetchOrders();
+        broadcastOrderSync(data.order);
+        setCaptureError(null);
+        setPendingRestockingFeeCents(null);
+        if (data.bayCapacity) {
+          setActiveOrdersCount(
+            (data.bayCapacity.occupiedBays ?? 0) +
+              (data.bayCapacity.occupiedCubbies ?? 0)
+          );
+        }
+      } else {
+        setAuthError(data.detail ?? data.error ?? 'Authorization declined.');
       }
-    } catch (err) {
-      console.error('Failed to authorize escrow:', err);
+    } catch {
+      setAuthError('Network error while establishing PayPal escrow hold.');
     } finally {
       setIsAuthorizing(false);
     }
   };
 
-  // Phase 2: Capture (Doorstep Proximity < 50m)
+  // Phase 2: Capture (Doorstep Proximity <= 50m)
   const executeCapture = useCallback(
-    async (order: OrderTicket) => {
-      if (hasCapturedRef.current) return;
-      hasCapturedRef.current = true;
+    async (order: OrderTicket, manualCheckInConfirmed = false) => {
+      if (isCapturingRef.current) return;
+      isCapturingRef.current = true;
+      setCaptureError(null);
 
       try {
         const res = await fetch('/api/paypal/capture', {
@@ -172,41 +279,65 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: order.orderId,
-            authId: order.authId,
-            amount: order.totalAmount,
+            distanceMeters: Math.min(distanceMeters, 50),
+            manualCheckInConfirmed,
           }),
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          setIsCaptured(true);
-          if (data.order) {
-            setActiveOrder(data.order);
-          }
-          await fetchOrders();
+        const data = await res.json();
+        if (res.ok && data.order) {
+          setActiveOrder(data.order);
+          broadcastOrderSync(data.order);
+        } else {
+          setCaptureError(
+            data.detail ?? 'PayPal doorstep settlement failed. Tap Retry.'
+          );
         }
-      } catch (err) {
-        console.error('Failed to capture:', err);
+      } catch {
+        setCaptureError('Connection interrupted at cafe doorstep. Tap Retry.');
+      } finally {
+        isCapturingRef.current = false;
       }
     },
-    [fetchOrders]
+    [distanceMeters, broadcastOrderSync]
   );
 
-  // Monitor geofence distance for proximity capture
+  // Outer <=250m Kitchen Fire Geofence + Inner <=50m Doorstep Settlement Geofence
   useEffect(() => {
-    if (
-      activeOrder &&
-      activeOrder.status === 'AUTHORIZED' &&
-      distanceMeters <= 50 &&
-      !isCaptured &&
-      !hasCapturedRef.current
-    ) {
-      executeCapture(activeOrder);
-    }
-  }, [distanceMeters, activeOrder, isCaptured, executeCapture]);
+    if (!activeOrder || activeOrder.status !== 'AUTHORIZED') return;
 
-  // Cancel order (US-08)
-  const handleCancelOrder = async () => {
+    if (distanceMeters <= 50 && !captureError) {
+      executeCapture(activeOrder, false);
+      return;
+    }
+
+    if (
+      distanceMeters <= 250 &&
+      activeOrder.fulfillmentStage === 'GRACE_HOLD' &&
+      firedGeofenceOrderRef.current !== activeOrder.orderId
+    ) {
+      firedGeofenceOrderRef.current = activeOrder.orderId;
+      fetch(`/api/orders/${activeOrder.orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'TRIGGER_KITCHEN_FIRE_GEOFENCE',
+          distanceMeters,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.order) {
+            setActiveOrder(d.order);
+            broadcastOrderSync(d.order);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [distanceMeters, activeOrder, captureError, executeCapture, broadcastOrderSync]);
+
+  // Cancel order (90s $0 Grace Hold vs $5.00 Post-Fire Partial Capture)
+  const handleCancelOrder = async (confirmRestockingFee = false) => {
     if (!activeOrder) return;
 
     setIsCanceling(true);
@@ -216,16 +347,24 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: activeOrder.orderId,
-          authId: activeOrder.authId,
+          distanceMeters,
+          confirmRestockingFee,
         }),
       });
 
+      const data = await res.json();
       if (res.ok) {
         setActiveOrder(null);
-        setIsCaptured(false);
-        hasCapturedRef.current = false;
-        await fetchOrders();
-        evaluateAgent(freeMinutes, distanceMeters, dietary);
+        broadcastOrderSync(null);
+        setCaptureError(null);
+        setPendingRestockingFeeCents(null);
+        await evaluateAgent(freeMinutes, distanceMeters, dietary);
+      } else if (res.status === 409 && data.code === 'GRACE_PERIOD_EXPIRED') {
+        const feeCents =
+          typeof data.details?.restockingFeeCents === 'number'
+            ? data.details.restockingFeeCents
+            : 500;
+        setPendingRestockingFeeCents(feeCents);
       }
     } catch (err) {
       console.error('Failed to cancel order:', err);
@@ -240,13 +379,22 @@ export default function Home() {
     try {
       await fetch('/api/orders/reset', { method: 'POST' });
       setActiveOrder(null);
-      setIsCaptured(false);
-      hasCapturedRef.current = false;
-      setFreeMinutes(35);
-      setDistanceMeters(200);
-      setDietary('Omnivore');
-      await fetchOrders();
-      await evaluateAgent(35, 200, 'Omnivore');
+      broadcastOrderSync(null);
+      setAuthError(null);
+      setCaptureError(null);
+      setPendingRestockingFeeCents(null);
+      setExcludedAllergens([]);
+      setFreeMinutes(currentScenario.freeMinutes);
+      setDistanceMeters(currentScenario.distanceMeters);
+      setDietary(currentScenario.dietary);
+      setContextMode(currentScenario.contextMode ?? 'calendar_gap');
+      await evaluateAgent(
+        currentScenario.freeMinutes,
+        currentScenario.distanceMeters,
+        currentScenario.dietary,
+        [],
+        currentScenario.contextMode ?? 'calendar_gap'
+      );
     } catch (err) {
       console.error('Failed to reset simulation:', err);
     } finally {
@@ -254,168 +402,253 @@ export default function Home() {
     }
   };
 
-  // Presets
-  const handleSimulateWalk = () => {
-    setFreeMinutes(40);
-    setDistanceMeters(200);
-    setDietary('Omnivore');
-  };
+  const isSettled = activeOrder?.status === 'CAPTURED';
 
-  const handleTriggerDoorstep = () => {
-    setDistanceMeters(35);
-  };
-
-  const handleTriggerOverrun = () => {
-    setFreeMinutes(15);
-  };
-
-  // Crisp, 1-line agent thought
-  const agentThought = recommendation?.shouldTrigger && recommendation.item
-    ? `${freeMinutes}m gap before Standup · 3m walk to ${recommendation.item.merchantName}`
-    : freeMinutes < 30
-    ? `Calendar gap is only ${freeMinutes}m (requires ≥ 30m). Respecting quiet focus mode.`
-    : distanceMeters > 500
-    ? `${distanceMeters}m away from cafe strip (boundary is 500m).`
-    : `Evaluating menu catalogs and kitchen prep times...`;
+  const agentThought =
+    recommendation?.shouldTrigger && recommendation.item
+      ? `${freeMinutes}m gap · ${distanceMeters}m walk to ${recommendation.item.merchantName}`
+      : recommendation && !recommendation.shouldTrigger
+        ? recommendation.reason
+        : `Evaluating menu catalogs and kitchen prep times...`;
 
   return (
-    <div className="min-h-screen bg-[#FAF9F5] flex flex-col text-[#1C1917]">
+    <div className="min-h-screen bg-culinary-bg flex flex-col text-culinary-text">
       <Navbar
         onReset={handleResetSimulation}
         isResetting={isResetting}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        activeOrdersCount={orders.length}
+        activeTab="meal"
+        setActiveTab={(tab) => {
+          if (tab === 'queue') {
+            router.push('/merchant');
+          }
+        }}
+        activeOrdersCount={activeOrdersCount}
         onOpenGuide={() => setIsOnboardingOpen(true)}
       />
 
       <main className="flex-1 w-full mx-auto px-3.5 sm:px-4 py-4 sm:py-6 flex flex-col items-center">
-        {activeTab === 'meal' ? (
-          /* Mobile-First Container (iPhone width: max-w-md / 400px) */
-          <div className="w-full max-w-md flex flex-col">
-            {/* The Agent Cognitive Stream */}
-            <AgentCognitiveBar
-              freeMinutes={freeMinutes}
-              setFreeMinutes={setFreeMinutes}
-              distanceMeters={distanceMeters}
-              setDistanceMeters={setDistanceMeters}
-              dietary={dietary}
-              setDietary={setDietary}
-              isEvaluating={isEvaluating}
-              agentThought={agentThought}
-              onSimulateWalk={handleSimulateWalk}
-              onTriggerDoorstep={handleTriggerDoorstep}
-              onTriggerOverrun={handleTriggerOverrun}
-              onOpenGuide={() => setIsOnboardingOpen(true)}
-            />
+        <div className="w-full max-w-md flex flex-col transition-all duration-300 ease-out">
+          <AgentCognitiveBar
+            freeMinutes={freeMinutes}
+            setFreeMinutes={setFreeMinutes}
+            distanceMeters={distanceMeters}
+            setDistanceMeters={setDistanceMeters}
+            dietary={dietary}
+            setDietary={setDietary}
+            excludedAllergens={excludedAllergens}
+            isEvaluating={isEvaluating}
+            agentThought={agentThought}
+            onSimulateWalk={() => {
+              setFreeMinutes(40);
+              setDistanceMeters(200);
+              setDietary('Omnivore');
+              setContextMode('calendar_gap');
+              evaluateAgent(40, 200, 'Omnivore', excludedAllergens, 'calendar_gap');
+            }}
+            onTriggerDoorstep={() => {
+              setDistanceMeters(35);
+              if (!activeOrder) {
+                evaluateAgent(freeMinutes, 35, dietary, excludedAllergens, contextMode);
+              }
+            }}
+            onTriggerOverrun={() => {
+              setFreeMinutes(15);
+              setContextMode('calendar_gap');
+              evaluateAgent(15, distanceMeters, dietary, excludedAllergens, 'calendar_gap');
+            }}
+            onOpenGuide={() => setIsOnboardingOpen(true)}
+          />
 
-            {/* The Culinary Concierge Experience */}
-            {isCaptured && activeOrder ? (
-              <DoorstepPass order={activeOrder} onReset={handleResetSimulation} />
+          <div className="transition-all duration-300 ease-out">
+            {isSettled && activeOrder ? (
+              <DoorstepPass
+                order={activeOrder}
+                onReset={handleResetSimulation}
+                onOrderUpdated={(updated) => {
+                  setActiveOrder(updated);
+                  broadcastOrderSync(updated);
+                }}
+                onRefundComplete={() => {
+                  setActiveOrder(null);
+                  broadcastOrderSync(null);
+                  evaluateAgent(freeMinutes, distanceMeters, dietary);
+                }}
+              />
             ) : activeOrder ? (
               <ActiveEscrowTicket
                 order={activeOrder}
                 distanceMeters={distanceMeters}
                 onSimulateArrival={() => setDistanceMeters(30)}
+                onManualCheckIn={async () => {
+                  await executeCapture(activeOrder, true);
+                }}
                 onCancelOrder={handleCancelOrder}
                 isCanceling={isCanceling}
+                captureError={captureError}
+                pendingRestockingFeeCents={pendingRestockingFeeCents}
+                onDismissFeePrompt={() => setPendingRestockingFeeCents(null)}
               />
-            ) : recommendation && recommendation.shouldTrigger && recommendation.item ? (
+            ) : recommendation && recommendation.shouldTrigger ? (
               <CulinaryRecommendationCard
+                key={recommendation.item.id}
                 recommendation={recommendation}
                 freeMinutes={freeMinutes}
                 distanceMeters={distanceMeters}
                 dietary={dietary}
+                excludedAllergens={excludedAllergens}
+                pickupRunId={pickupRunId}
+                onToggleAllergen={handleToggleAllergen}
+                onSelectAlternative={handleSelectAlternative}
                 onAuthorize={handleAuthorize}
                 isAuthorizing={isAuthorizing}
-                onSimulateWalk={handleSimulateWalk}
-                onTriggerDoorstep={handleTriggerDoorstep}
-                onToggleDietary={() => setDietary(dietary === 'Vegan' ? 'Omnivore' : 'Vegan')}
-                onTriggerOverrun={handleTriggerOverrun}
+                authError={authError}
+                onSimulateWalk={() => {
+                  setFreeMinutes(40);
+                  setDistanceMeters(200);
+                  setDietary('Omnivore');
+                  setContextMode('calendar_gap');
+                  evaluateAgent(
+                    40,
+                    200,
+                    'Omnivore',
+                    excludedAllergens,
+                    'calendar_gap'
+                  );
+                }}
+                onTriggerDoorstep={() => {
+                  setDistanceMeters(35);
+                  evaluateAgent(
+                    freeMinutes,
+                    35,
+                    dietary,
+                    excludedAllergens,
+                    contextMode
+                  );
+                }}
+                onToggleDietary={() => {
+                  const nextDiet = dietary === 'Vegan' ? 'Omnivore' : 'Vegan';
+                  setDietary(nextDiet);
+                  evaluateAgent(
+                    freeMinutes,
+                    distanceMeters,
+                    nextDiet,
+                    excludedAllergens,
+                    contextMode
+                  );
+                }}
+                onTriggerOverrun={() => {
+                  setFreeMinutes(15);
+                  setContextMode('calendar_gap');
+                  evaluateAgent(
+                    15,
+                    distanceMeters,
+                    dietary,
+                    excludedAllergens,
+                    'calendar_gap'
+                  );
+                }}
                 onOpenGuide={() => setIsOnboardingOpen(true)}
               />
             ) : (
-              /* Quiet Ambient Idle Card */
-              <div className="w-full bg-white rounded-3xl p-6 text-center border border-[#EAE7DF] shadow-xs">
-                <div className="w-10 h-10 mx-auto rounded-xl bg-[#FAF9F5] border border-[#EAE7DF] flex items-center justify-center mb-2.5 text-[#A8A29E]">
+              /* Quiet / Safety Suppressed Ambient Card */
+              <div className="w-full bg-white rounded-3xl p-6 text-center border border-culinary-border shadow-xs transition-all duration-300">
+                <div className="w-10 h-10 mx-auto rounded-xl bg-culinary-bg border border-culinary-border flex items-center justify-center mb-2.5 text-culinary-muted">
                   <Clock className="w-5 h-5" />
                 </div>
-                <h3 className="font-serif text-base font-bold text-[#1C1917] mb-1">
+                <h3 className="font-serif text-base font-bold text-culinary-text mb-1">
                   Ambient Silence Active
                 </h3>
-                <p className="text-xs text-[#78716C] max-w-xs mx-auto mb-3.5 leading-relaxed">
-                  {freeMinutes < 30
-                    ? `Gap is ${freeMinutes}m (requires ≥ 30m). BitePass respects your quiet focus time.`
-                    : distanceMeters > 500
-                    ? `You are ${distanceMeters}m away (exceeds 500m proximity boundary).`
-                    : `Agent is monitoring dining queue states...`}
+                <p className="text-xs text-culinary-muted max-w-xs mx-auto mb-3.5 leading-relaxed">
+                  {recommendation?.reason ??
+                    `Gap is ${freeMinutes}m (requires ≥ 30m). BitePass respects your quiet focus time.`}
                 </p>
                 <button
-                  onClick={handleSimulateWalk}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FAF9F5] hover:bg-[#F2EFE9] border border-[#EAE7DF] text-xs font-semibold text-[#1C1917] transition-colors cursor-pointer"
+                  type="button"
+                  onClick={() => {
+                    setFreeMinutes(35);
+                    setDistanceMeters(200);
+                    setExcludedAllergens([]);
+                    setContextMode('calendar_gap');
+                    evaluateAgent(35, 200, dietary, [], 'calendar_gap');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-culinary-bg hover:bg-culinary-subtle border border-culinary-border text-xs font-semibold text-culinary-text transition-colors cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-[#E05A38]" />
-                  <span>Simulate 12:15 PM Lunch</span>
+                  <Sparkles className="w-3.5 h-3.5 text-culinary-terracotta" />
+                  <span>Check Again</span>
                 </button>
               </div>
             )}
-
-            {/* Subtle Link to Kitchen Board */}
-            <div className="text-center pt-3">
-              <button
-                onClick={() => setActiveTab('queue')}
-                className="text-[11px] text-[#78716C] hover:text-[#1C1917] font-medium transition-colors cursor-pointer inline-flex items-center gap-1"
-              >
-                <ChefHat className="w-3 h-3 text-[#D97706]" />
-                <span>View Kitchen Operations (AG Grid)</span>
-                <ArrowRight className="w-2.5 h-2.5 text-[#A8A29E]" />
-              </button>
-            </div>
           </div>
-        ) : (
-          /* Kitchen Queue Tab (Full width for AG Grid) */
-          <div className="w-full max-w-4xl flex flex-col gap-4">
-            <div className="flex items-center justify-between pb-2 border-b border-[#EAE7DF]">
-              <div>
-                <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#1C1917]">
-                  Merchant Kitchen Operations
-                </h2>
-                <p className="text-xs text-[#78716C]">
-                  Real-time ticket state transitions powered by AG Grid React
-                </p>
-              </div>
-              <button
-                onClick={() => setActiveTab('meal')}
-                className="px-3 py-1.5 rounded-xl bg-white border border-[#EAE7DF] text-xs font-semibold text-[#1C1917] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
-              >
-                &larr; Back to Lunch
-              </button>
-            </div>
 
-            <MerchantQueueGrid orders={orders} bayCapacity={bayCapacity} />
+          {/* Dedicated Route Link to Merchant Kitchen Display System */}
+          <div className="text-center pt-3">
+            <button
+              type="button"
+              onClick={() => router.push('/merchant')}
+              className="text-xs text-culinary-muted hover:text-culinary-text font-medium transition-colors cursor-pointer inline-flex items-center gap-1"
+            >
+              <ChefHat className="w-3.5 h-3.5 text-culinary-amber" />
+              <span>View Kitchen Operations (AG Grid)</span>
+              <ArrowRight className="w-3 h-3 text-culinary-muted" />
+            </button>
           </div>
-        )}
+        </div>
       </main>
 
-      {/* Culinary Minimal Footer */}
-      <footer className="border-t border-[#EAE7DF] bg-[#FFFFFF] py-3 mt-auto">
-        <div className="max-w-md mx-auto px-4 flex items-center justify-between text-[11px] text-[#78716C]">
+      <footer className="border-t border-culinary-border bg-white py-3 mt-auto safe-area-bottom">
+        <div className="max-w-md mx-auto px-4 flex flex-wrap items-center justify-between gap-2 text-xs text-culinary-muted">
           <span>
-            <strong>BitePass</strong> &middot; Gemini 4 Argon
+            <strong className="text-culinary-text">BitePass</strong> &middot; Gemini 4 Argon
           </span>
-          <span className="font-mono text-[10px] text-[#A8A29E]">
-            PayPal 2-Phase Escrow
-          </span>
+          <div className="flex items-center gap-2.5">
+            <Link href="/legal/terms" className="hover:text-culinary-text underline">
+              Terms
+            </Link>
+            <Link href="/legal/privacy" className="hover:text-culinary-text underline">
+              Privacy
+            </Link>
+            <span className="font-mono text-xs text-culinary-muted inline-flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-culinary-sage" />
+              <span>Escrow</span>
+            </span>
+          </div>
         </div>
       </footer>
 
-      {/* Mobile Onboarding Guide Modal */}
       <MobileOnboardingGuide
         isOpen={isOnboardingOpen}
         onClose={() => setIsOnboardingOpen(false)}
-        onSimulateLunch={handleSimulateWalk}
-        onSimulateVegan={() => setDietary('Vegan')}
+        onSimulateLunch={() => {
+          setFreeMinutes(40);
+          setDistanceMeters(200);
+          setDietary('Omnivore');
+          evaluateAgent(40, 200, 'Omnivore', excludedAllergens, 'calendar_gap');
+        }}
+        onSimulateVegan={() => {
+          setDietary('Vegan');
+          evaluateAgent(
+            Math.max(35, freeMinutes),
+            distanceMeters,
+            'Vegan',
+            excludedAllergens,
+            'calendar_gap'
+          );
+        }}
       />
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-culinary-bg flex items-center justify-center text-xs font-mono text-culinary-muted">
+          Loading BitePass...
+        </div>
+      }
+    >
+      <BitePassConsumerApp />
+    </Suspense>
   );
 }

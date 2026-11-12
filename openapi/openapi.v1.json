@@ -1,0 +1,724 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BitePass Autonomous Culinary Concierge API",
+    "version": "1.0.0",
+    "summary": "Gemini 4 Argon dietary reasoning, 2-phase PayPal Vault/Multiparty escrow, 2-stage geofences, and AG Grid KDS telemetry.",
+    "description": "Versioned HTTP contract (`/api/v1/*`) using RFC 9457 Problem Details (`application/problem+json`) and integer-cent monetary precision.",
+    "license": {
+      "name": "Proprietary — BitePass Commercial License"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development & Judge Sandbox"
+    },
+    {
+      "url": "https://api.bitepass.ai",
+      "description": "Production Multi-Tower Cluster"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Agent",
+      "description": "Gemini 4 Argon calendar & allergen-safe ranking"
+    },
+    {
+      "name": "Escrow",
+      "description": "PayPal Orders v2 2-phase hold, capture, void & refund"
+    },
+    {
+      "name": "Orders",
+      "description": "Scoped diner ticket lookups, KDS transitions & Wallet passes"
+    },
+    {
+      "name": "Operations",
+      "description": "Readiness probes, SSE stream, webhooks & saga reconciler"
+    },
+    {
+      "name": "Privacy",
+      "description": "GDPR Art. 17 / CCPA right-to-erasure endpoints"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "dinerSessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "bp_session"
+      },
+      "merchantKdsBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "ProblemDetails": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "code",
+          "retryable"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "AgentEvaluateRequest": {
+        "type": "object",
+        "required": [
+          "freeMinutes",
+          "distanceMeters",
+          "dietary"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "freeMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 480
+          },
+          "distanceMeters": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "dietary": {
+            "type": "string",
+            "enum": [
+              "Omnivore",
+              "Vegan",
+              "Gluten-Free"
+            ]
+          },
+          "excludedAllergens": {
+            "type": "array",
+            "maxItems": 9,
+            "items": {
+              "type": "string",
+              "enum": [
+                "Milk",
+                "Eggs",
+                "Fish",
+                "Shellfish",
+                "Tree Nuts",
+                "Peanuts",
+                "Wheat",
+                "Soy",
+                "Sesame"
+              ]
+            }
+          },
+          "contextMode": {
+            "type": "string",
+            "enum": [
+              "calendar_gap",
+              "transit_transfer",
+              "on_call_lull"
+            ]
+          },
+          "towerId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      },
+      "CreateEscrowRequest": {
+        "type": "object",
+        "required": [
+          "itemId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "pattern": "^prod_[a-z0-9_]{2,48}$"
+          },
+          "tweakOptionId": {
+            "type": "string",
+            "pattern": "^opt_[a-z0-9_]{2,48}$"
+          },
+          "selectedTweak": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "tipSelection": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "mode",
+                  "amountCents"
+                ],
+                "properties": {
+                  "mode": {
+                    "const": "fixed_cents"
+                  },
+                  "amountCents": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5000
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "mode",
+                  "percent"
+                ],
+                "properties": {
+                  "mode": {
+                    "const": "percent"
+                  },
+                  "percent": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      10,
+                      15,
+                      20
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "excludedAllergens": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "Milk",
+                "Eggs",
+                "Fish",
+                "Shellfish",
+                "Tree Nuts",
+                "Peanuts",
+                "Wheat",
+                "Soy",
+                "Sesame"
+              ]
+            }
+          },
+          "customerName": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "distanceMeters": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 128
+          },
+          "vaultId": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 128
+          },
+          "workEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "pickupRunId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{3,48}$"
+          }
+        }
+      },
+      "CaptureEscrowRequest": {
+        "type": "object",
+        "required": [
+          "orderId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "pattern": "^ORD-[A-Z0-9-]{2,40}$"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 128
+          },
+          "distanceMeters": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "manualCheckInConfirmed": {
+            "type": "boolean"
+          },
+          "kdsAttested": {
+            "type": "boolean"
+          },
+          "telemetry": {
+            "type": "object",
+            "required": [
+              "lat",
+              "lng",
+              "accuracyMeters",
+              "capturedAtMs"
+            ],
+            "properties": {
+              "lat": {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              "lng": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              },
+              "accuracyMeters": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "capturedAtMs": {
+                "type": "integer"
+              },
+              "bleToken": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "VoidEscrowRequest": {
+        "type": "object",
+        "required": [
+          "orderId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "pattern": "^ORD-[A-Z0-9-]{2,40}$"
+          },
+          "confirmRestockingFee": {
+            "type": "boolean",
+            "default": false
+          },
+          "distanceMeters": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        }
+      },
+      "RefundOrderRequest": {
+        "type": "object",
+        "required": [
+          "orderId",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "pattern": "^ORD-[A-Z0-9-]{2,40}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "EMPTY_CUBBY",
+              "WRONG_ITEM_OR_ALLERGEN",
+              "COLD_OR_MISSING_SIDE"
+            ]
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "INSTANT_REFUND",
+              "RUSH_REMAKE"
+            ],
+            "default": "INSTANT_REFUND"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Readiness, DB connectivity, mock-safety & unit-margin telemetry probe",
+        "responses": {
+          "200": {
+            "description": "Service healthy"
+          },
+          "503": {
+            "description": "Dependency degraded"
+          }
+        }
+      }
+    },
+    "/api/v1/agent": {
+      "post": {
+        "operationId": "evaluateAgentContext",
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Evaluate diner calendar gap, proximity & FDA Top-9 allergen blocklist",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentEvaluateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Structured culinary recommendation or suppression"
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (10 req/min)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/create": {
+      "post": {
+        "operationId": "createEscrowAuthorization",
+        "tags": [
+          "Escrow"
+        ],
+        "summary": "Phase 1: Lease merchant station & place PayPal Orders v2 AUTHORIZE hold",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEscrowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Escrow hold established and station leased"
+          },
+          "409": {
+            "description": "Active order already exists or merchant at capacity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Allergen conflict or PayPal authorization declined",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/capture": {
+      "post": {
+        "operationId": "captureEscrowAuthorization",
+        "tags": [
+          "Escrow"
+        ],
+        "summary": "Phase 2: Verify <=50m doorstep kinematics/BLE & settle PayPal hold",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureEscrowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Escrow captured and pickup station unlocked"
+          },
+          "403": {
+            "description": "IDOR ownership violation"
+          },
+          "422": {
+            "description": "Geofence / velocity check failed or issuer declined"
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/void": {
+      "post": {
+        "operationId": "voidEscrowAuthorization",
+        "tags": [
+          "Escrow"
+        ],
+        "summary": "0-90s $0 grace void or confirmed $5.00 post-fire COGS partial capture",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidEscrowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorization voided or partial restocking fee captured"
+          },
+          "409": {
+            "description": "Grace window expired; requires confirmRestockingFee: true"
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/refund": {
+      "post": {
+        "operationId": "refundCapturedOrder",
+        "tags": [
+          "Escrow"
+        ],
+        "summary": "2-tap self-serve cubby dispute instant refund & automatic station quarantine",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundOrderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Refund completed and cubby quarantined"
+          }
+        }
+      }
+    },
+    "/api/v1/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "List KDS orders (RBAC) or rehydrate active diner ticket (`?mine=true`)",
+        "parameters": [
+          {
+            "name": "mine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped order snapshot and bay capacity"
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{orderId}": {
+      "get": {
+        "operationId": "getOrderById",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Lookup single order ticket (owner or Merchant KDS)",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order details"
+          },
+          "403": {
+            "description": "Forbidden (IDOR guard)"
+          },
+          "404": {
+            "description": "Order not found"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchOrderKdsAction",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Execute gloved KDS station transition or <=250m outer fire geofence",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated order and station capacity"
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{orderId}/wallet-pass": {
+      "get": {
+        "operationId": "exportSignedWalletPass",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Export HMAC-signed Apple/Google Wallet digital pass with Express Shelf color code",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed digital pass payload"
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "operationId": "subscribeKitchenEvents",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Real-time Server-Sent Events stream with 15s heartbeat",
+        "responses": {
+          "200": {
+            "description": "text/event-stream snapshot & delta updates"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/paypal": {
+      "post": {
+        "operationId": "handlePayPalWebhook",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Cryptographically verified PayPal Orders/Payments/Partner webhook listener",
+        "responses": {
+          "200": {
+            "description": "Idempotent webhook processed"
+          },
+          "401": {
+            "description": "Invalid PayPal transmission signature"
+          }
+        }
+      }
+    },
+    "/api/v1/internal/reconcile": {
+      "post": {
+        "operationId": "reconcileEscrowSagas",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "1-minute crash-safe CAPTURING reconciler & 3-hour SLA hold reaper",
+        "responses": {
+          "200": {
+            "description": "Reconciliation report"
+          }
+        }
+      }
+    },
+    "/api/v1/account/data": {
+      "delete": {
+        "operationId": "eraseDinerAccountData",
+        "tags": [
+          "Privacy"
+        ],
+        "summary": "GDPR Art. 17 / CCPA right-to-erasure: voids active hold, anonymizes PII & clears cookies",
+        "responses": {
+          "200": {
+            "description": "Erasure confirmation"
+          }
+        }
+      }
+    }
+  }
+}
